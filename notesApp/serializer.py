@@ -8,3 +8,4 @@ class  NotesSerializer(serializers.ModelSerializer):
         model = Notes
         fields = "__all__"
         
+        
