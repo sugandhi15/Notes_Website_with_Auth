@@ -7,7 +7,7 @@ from .views import Register,ResetPassword,passwordResetToken,specificNote,google
 # router.register(r'notes', NotesViewSet, basename='notes')
 
 urlpatterns = [
-    path("/",homepage,name="homepage"),
+    path("",homepage,name="homepage"),
     path('notes/',NotesEndpt,name="NotesEndpt"),
     path('register/',Register,name="register"),
     path('note/<int:id>',specificNote,name="specificNote"),
