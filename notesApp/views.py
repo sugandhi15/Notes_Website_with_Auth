@@ -2,7 +2,6 @@
 from rest_framework import viewsets
 from .serializer import NotesSerializer
 from .models import Notes
-from rest_framework.views import APIView
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -13,36 +12,20 @@ from rest_framework.permissions import AllowAny
 from rest_framework.decorators import permission_classes
 import json
 from django.template.loader import render_to_string
-
-from django.contrib.auth.tokens import default_token_generator
-from django.utils.http import urlsafe_base64_encode
-from django.utils.encoding import force_bytes
+from django.contrib.auth import login 
+from rest_framework_simplejwt.tokens import RefreshToken
 from django.core.mail import send_mail
 from django.http import JsonResponse
-from django.core.exceptions import ObjectDoesNotExist
-from django.shortcuts import redirect
-# from allauth.socialaccount.providers.google.views import OAuth2Adapter
-# from allauth.socialaccount.providers.oauth2.client import OAuth2Client
-# from allauth.socialaccount.helpers import complete_social_login
-# from allauth.socialaccount.models import SocialLogin
-from django.conf import settings
-import jwt
-from django.shortcuts import redirect, render
-from django.conf import settings
-from allauth.socialaccount.models import SocialAccount
+# from django.core.exceptions import ObjectDoesNotExist
 from django.shortcuts import redirect
 from social_django.utils import load_strategy, load_backend
-from social_core.actions import do_auth
-
 
 
 
 # to get perform operations on note by specific id
 @api_view(['GET', 'POST', 'DELETE'])
 @permission_classes([IsAuthenticated])
-
 def specificNote(request,id):
-
     try:
         note = Notes.objects.get(id=id, user=request.user)
         # accesing specific note by id
@@ -50,17 +33,33 @@ def specificNote(request,id):
             notes = Notes.objects.filter(id = id)
             return Response(notes)
         
-        elif request.method == 'PUT':
-            serializer = NotesSerializer(note, data=request.data)
-            if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data)
-            return Response(serializer.errors)
+        if request.method == 'PUT':
+            try:
+                data = request.data
+                note = Notes.objects.get(id=id)
+                serializer = NotesSerializer(instance=note, data=data)
+                # serializer = NotesSerializer(note, data=request.data)
+                if serializer.is_valid():
+                    serializer.save()
+                    return Response(serializer.data)
+                return Response(serializer.errors)
+            except Exception as e:
+                return Response({
+                    "msg":e
+                })
 
-
-        elif request.method == 'DELETE':
-            note.delete()
-            return Response({'message': 'Note deleted successfully'})
+        if request.method == 'DELETE':
+            try:
+                Notes.objects.get(id=id).delete()
+                return Response({
+                    'status': True,
+                    'message': ' Note deleted successfully.'
+                })
+            except Exception as e:
+                return Response({
+                        'status': False,
+                        'message':e
+                    })
         
     except Exception as e:
         return Response({'message':e})
@@ -68,32 +67,66 @@ def specificNote(request,id):
 
 
 
+@api_view(['GET', 'POST', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def NotesEndpt(request):
+    try:
+        note = Notes.objects.get(user=request.user)
+        
+        if request.method == 'GET':
+            notes = Notes.objects.filter(user = request.user)
+            return Response(notes)
+        
+        if request.method == 'POST':
+            try:
+                serializer = NotesSerializer(data=request.data)
+                if serializer.is_valid():
+                    serializer.save(user=request.user) 
+                    return Response({
+                        "message": "Note created successfully!",
+                        "data": serializer.data
+                    })
+                
+                return Response({
+                    "errors": serializer.errors
+                })
+            except Exception as e:
+                return Response({
+                    "msg":e
+                })
 
-# viewset for notes
-class NotesViewSet(viewsets.ModelViewSet):
+        if request.method == 'DELETE':
+            try:
+                Notes.objects.filter(user=request.user).delete()
+                return Response({
+                    'status': True,
+                    'message': ' Note deleted successfully.'
+                })
+            except Exception as e:
+                return Response({
+                        'status': False,
+                        'message':e
+                    })
+        
+    except Exception as e:
+        return Response({'message':e})
 
-    authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated]
 
-    serializer_class = NotesSerializer
-    queryset = Notes.objects.all() 
 
-    def get_queryset(self):
-        # to get user specific notes
-        return Notes.objects.filter(user=self.request.user)
-    
-    def create(self, request, *args, **kwargs):
+        
+
+    def destroy_queryset(self, request, *args, **kwargs):
         try:
-            #  to create a link with serialiser and create a instance
-            serializer = self.get_serializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
-            serializer.save(user=request.user)
-            return Response(serializer.data)
+            Notes.objects.filter(user=request.user).delete()  
+            return Response({
+                'status': True,
+                'message': 'All Notes deleted successfully.'
+            })
         except Exception as e:
             return Response({
                 "msg":e
             })
-    
+
 
 
 #  To register a new user
@@ -101,7 +134,8 @@ class NotesViewSet(viewsets.ModelViewSet):
 @permission_classes([AllowAny])
 def Register(request):
     try:
-        jsonData = json.loads(request.body.decode('utf-8'))
+        jsonData = request.data
+        print(json)
     except json.JSONDecodeError:
         return Response({"error": "Invalid JSON format"}, status=400)
     
@@ -134,7 +168,6 @@ def ResetPassword(request):
     try:
         user = User.objects.get(email=email)
         password_reset_link = "http://localhost:8000/pass/reset/"
-
         subject = "Password Reset Requested"
         message = render_to_string('reset.html', {
             'password_reset_link': password_reset_link,
@@ -144,8 +177,8 @@ def ResetPassword(request):
         send_mail(subject, message, 'sugandhibansal26@gmail.com', [email])
         return JsonResponse({"message": "Password reset link sent."}, status=200)
     
-    except ObjectDoesNotExist:
-        return JsonResponse({"error": "User with this email does not exist."}, status=404)
+    # except ObjectDoesNotExist:
+    #     return JsonResponse({"error": "User with this email does not exist."}, status=404)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
     
@@ -171,30 +204,32 @@ def passwordResetToken(request,token):
         send_mail(subject, message, 'sugandhibansal26@gmail.com', [email])
         return JsonResponse({"message": "Password reset link sent."}, status=200)
     
-    except ObjectDoesNotExist:
-        return JsonResponse({"error": "User with this email does not exist."}, status=404)
+    # except ObjectDoesNotExist:
+    #     return JsonResponse({"error": "User with this email does not exist."}, status=404)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
     
     
 
 
-#  to change password from link through email
+# #  to change password from link through email
 @api_view(['POST'])
 def UserPassReset(request):
+    authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
-    user = request.user
-    newPass = request.POST['password']
+    username = request.data.get('username')
+    new_password = request.data.get('password')
 
-    user.set_password(newPass)
-    user.save()
-    user_data = {
-        'username': user.username,
-        'email': user.email,
-        'password':user.password,
-    }
-    return Response(user_data)
+    try:
+        user = User.objects.get(username=username) 
+        user.set_password(new_password) 
+        user.save()  
+        return Response({'message': 'Password updated successfully'})
+    except Exception as e:
+        return Response({
+            'error': e
+        })
 
 def google_login(request):
     strategy = load_strategy(request)
@@ -222,3 +257,15 @@ def google_callback(request):
         })
     else:
         return Response({"error": "Authentication failed"}, status=400)
+    
+@api_view(['GET'])
+def FetchAllNotes(request):
+    try:
+        notes = Notes.objects.all()
+        serializer = NotesSerializer(notes, many=True)
+        return Response(serializer.data)
+    except Exception as e:
+        return Response({
+            "msg":e
+        })
+    
