@@ -22,6 +22,15 @@ from social_django.utils import load_strategy, load_backend
 
 
 
+
+# home page
+def homepage(request):
+    return Response({
+        "msg":"HELLO, Welcome to this note making application ."
+    })
+
+
+
 # to get perform operations on note by specific id
 @api_view(['GET', 'POST', 'DELETE'])
 @permission_classes([IsAuthenticated])

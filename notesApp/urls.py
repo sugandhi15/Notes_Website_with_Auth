@@ -1,13 +1,13 @@
 from django.urls import path
 # from .views import NotesViewSet
 from rest_framework.routers import DefaultRouter
-from .views import Register,ResetPassword,passwordResetToken,specificNote,google_login,google_callback,FetchAllNotes,NotesEndpt,UserPassReset
+from .views import Register,ResetPassword,passwordResetToken,specificNote,google_login,google_callback,FetchAllNotes,NotesEndpt,UserPassReset,homepage
 
 # router = DefaultRouter()
 # router.register(r'notes', NotesViewSet, basename='notes')
 
 urlpatterns = [
-
+    path("/",homepage,name="homepage"),
     path('notes/',NotesEndpt,name="NotesEndpt"),
     path('register/',Register,name="register"),
     path('note/<int:id>',specificNote,name="specificNote"),
