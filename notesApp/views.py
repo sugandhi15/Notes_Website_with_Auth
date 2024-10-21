@@ -20,6 +20,20 @@ from django.utils.encoding import force_bytes
 from django.core.mail import send_mail
 from django.http import JsonResponse
 from django.core.exceptions import ObjectDoesNotExist
+from django.shortcuts import redirect
+# from allauth.socialaccount.providers.google.views import OAuth2Adapter
+# from allauth.socialaccount.providers.oauth2.client import OAuth2Client
+# from allauth.socialaccount.helpers import complete_social_login
+# from allauth.socialaccount.models import SocialLogin
+from django.conf import settings
+import jwt
+from django.shortcuts import redirect, render
+from django.conf import settings
+from allauth.socialaccount.models import SocialAccount
+from django.shortcuts import redirect
+from social_django.utils import load_strategy, load_backend
+from social_core.actions import do_auth
+
 
 
 
@@ -181,3 +195,30 @@ def UserPassReset(request):
         'password':user.password,
     }
     return Response(user_data)
+
+def google_login(request):
+    strategy = load_strategy(request)
+    backend = load_backend(strategy=strategy, name='google-oauth2', redirect_uri=None)
+    return redirect(backend.auth_url())
+
+def google_callback(request):
+    # Get the logged-in user's social account info from Django Allauth
+    user = request.user
+
+    strategy = load_strategy(request)
+    backend = load_backend(strategy=strategy, name='google-oauth2', redirect_uri=None)
+    
+    # Complete the authentication
+    user = backend.do_auth(request.GET.get('code'))
+    
+    if user and user.is_active:
+        login(request, user)  # Log the user in
+
+        # Generate JWT tokens
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+        })
+    else:
+        return Response({"error": "Authentication failed"}, status=400)
